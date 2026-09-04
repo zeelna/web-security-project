@@ -29,6 +29,20 @@ func applyMiddleware(handler http.Handler, middlewareChain ...middleware) http.H
 	return handler
 }
 
+// noSniffMiddleware sets the "X-Content-Type-Options: nosniff" response header
+// on all outgoing responses before passing the request to the next handler.
+//
+// This instructs browsers to strictly adhere to the declared Content-Type rather
+// than attempting MIME-type sniffing, preventing executable content from being
+// interpreted improperly (e.g., executing uploaded text/images as scripts).
+func noSniffMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+		// request.Header.Set("X-Content-Type-Options", "nosniff")
+		responseWriter.Header().Set("X-Content-Type-Options", "nosniff")
+		next.ServeHTTP(responseWriter, request)
+	})
+}
+
 func permissiveCORS(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
 		if origin := request.Header.Get("Origin"); origin != "" {
