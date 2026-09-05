@@ -10,6 +10,7 @@ import (
 
 	"github.com/bootdotdev/learn-web-security/internal/accounts"
 	"github.com/bootdotdev/learn-web-security/internal/auth/mfa"
+	"github.com/bootdotdev/learn-web-security/internal/auth/passwords"
 	"github.com/bootdotdev/learn-web-security/internal/auth/sessions"
 	"github.com/bootdotdev/learn-web-security/internal/httpx"
 	"github.com/bootdotdev/learn-web-security/internal/logging"
@@ -89,6 +90,20 @@ func (handler *Handler) UpdateEmail(responseWriter http.ResponseWriter, request 
 		}
 		return
 	}
+	// Verify that password is correct
+	currentPassword, currentPasswordErr := httpx.FormValue(request, "currentPassword")
+	if currentPasswordErr != nil {
+		handler.errorPage(responseWriter, http.StatusBadRequest, "Invalid Request", "The submitted form is invalid.")
+		return
+	}
+	if false == passwords.Verify(currentPassword, current.User.PasswordHash) {
+		if err := handler.renderPage(responseWriter, http.StatusForbidden,
+			current, "Re-enter your current password to change your email."); err != nil {
+			handler.internalError(responseWriter, request, err)
+		}
+		return
+	}
+
 	existingUser, found, err := handler.accountStore.FindUserByEmail(request.Context(), email)
 	if err != nil {
 		handler.internalError(responseWriter, request, err)

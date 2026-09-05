@@ -95,6 +95,33 @@ func (handler *Handler) Products(responseWriter http.ResponseWriter, request *ht
 }
 
 func (handler *Handler) WarehouseOrders(responseWriter http.ResponseWriter, request *http.Request) {
+	/*
+		keyBytes := make([]byte, 32)
+		if _, err := rand.Read(keyBytes); err != nil {
+			handler.internalError(responseWriter, request, err)
+			return
+		}
+	*/
+	apiKeyBytes := request.Header.Get("X-API-Key")
+	if apiKeyBytes == "" {
+		httpx.RespondWithJSON(responseWriter, http.StatusUnauthorized, map[string]string{"error": "X-API-Key is required"})
+		return
+	}
+	//apiKey := hex.EncodeToString([]byte(apiKeyBytes))
+	key, valid, err := handler.apiStore.FindKey(request.Context(), apiKeyBytes)
+	if err != nil {
+		handler.internalError(responseWriter, request, err)
+		return
+	}
+	if !valid {
+		httpx.RespondWithJSON(responseWriter, http.StatusUnauthorized, map[string]string{"error": "API key not found or invalid"})
+		return
+	}
+	if key.Scope != "orders:read" {
+		httpx.RespondWithJSON(responseWriter, http.StatusForbidden, map[string]string{"error": "API key is missing 'orders:read'"})
+		return
+	}
+
 	orders, err := handler.orderStore.ListAll(request.Context())
 	if err != nil {
 		handler.internalError(responseWriter, request, err)
