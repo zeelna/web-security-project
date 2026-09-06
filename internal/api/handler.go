@@ -55,21 +55,28 @@ func (handler *Handler) AccountOrders(responseWriter http.ResponseWriter, reques
 }
 
 func (handler *Handler) Order(responseWriter http.ResponseWriter, request *http.Request) {
-	_, ok := handler.requireAuthentication(responseWriter, request)
+	currentSession, ok := handler.requireAuthentication(responseWriter, request)
 	if !ok {
 		return
 	}
 	orderID, valid := httpx.ParseSafeInteger(request.PathValue("id"))
+	// Input Validation
 	if !valid {
 		httpx.RespondWithJSON(responseWriter, http.StatusNotFound, map[string]string{"error": "Order not found"})
 		return
 	}
+	// Database read once 1) input correct
 	order, found, err := handler.orderStore.FindByID(request.Context(), orderID)
 	if err != nil {
 		handler.internalError(responseWriter, request, err)
 		return
 	}
 	if !found {
+		httpx.RespondWithJSON(responseWriter, http.StatusNotFound, map[string]string{"error": "Order not found"})
+		return
+	}
+	// ABAC - make sure the order's ownerID matched authenticated session's userID.
+	if currentSession.User.ID != order.UserID {
 		httpx.RespondWithJSON(responseWriter, http.StatusNotFound, map[string]string{"error": "Order not found"})
 		return
 	}

@@ -97,8 +97,10 @@ func (handler *Handler) Edit(responseWriter http.ResponseWriter, request *http.R
 	if !ok {
 		return
 	}
+	// ABAC
 	review, found := handler.requireReview(responseWriter, request)
-	if !found {
+	if (current.User.ID != review.UserID) || !found {
+		handler.reviewNotFound(responseWriter)
 		return
 	}
 	if err := handler.renderForm(responseWriter, http.StatusOK, current, review, ""); err != nil {
@@ -111,8 +113,10 @@ func (handler *Handler) Update(responseWriter http.ResponseWriter, request *http
 	if !ok || !handler.verifyCSRF(responseWriter, request, current.Session.CSRFToken) {
 		return
 	}
+	// ABAC
 	review, found := handler.requireReview(responseWriter, request)
-	if !found {
+	if (current.User.ID != review.UserID) || !found {
+		handler.reviewNotFound(responseWriter)
 		return
 	}
 	ratingValue, ratingErr := httpx.FormValue(request, "rating")
@@ -147,8 +151,10 @@ func (handler *Handler) Delete(responseWriter http.ResponseWriter, request *http
 	if !ok || !handler.verifyCSRF(responseWriter, request, current.Session.CSRFToken) {
 		return
 	}
+	// ABAC
 	review, found := handler.requireReview(responseWriter, request)
-	if !found {
+	if (current.User.ID != review.UserID) || !found {
+		handler.reviewNotFound(responseWriter)
 		return
 	}
 	if err := handler.store.Delete(request.Context(), review.ID); err != nil {

@@ -87,7 +87,7 @@ func (handler *Handler) Upload(responseWriter http.ResponseWriter, request *http
 }
 
 func (handler *Handler) Download(responseWriter http.ResponseWriter, request *http.Request) {
-	_, ok := handler.requireAuth(responseWriter, request)
+	currentSession, ok := handler.requireAuth(responseWriter, request)
 	if !ok {
 		return
 	}
@@ -102,6 +102,11 @@ func (handler *Handler) Download(responseWriter http.ResponseWriter, request *ht
 		return
 	}
 	if !found {
+		handler.fileNotFound(responseWriter)
+		return
+	}
+	// ABAC
+	if file.UserID != currentSession.User.ID && currentSession.User.Role != "support" && currentSession.User.Role != "admin" {
 		handler.fileNotFound(responseWriter)
 		return
 	}

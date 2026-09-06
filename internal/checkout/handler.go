@@ -96,7 +96,8 @@ func (handler *Handler) Submit(responseWriter http.ResponseWriter, request *http
 		handler.renderCheckoutError(responseWriter, request, http.StatusConflict, current, items, unavailableItem.Name+" is no longer available in the requested quantity. Update your cart before checking out.")
 		return
 	}
-	shippingDetails, discountCents, valid := handler.parseCheckoutForm(responseWriter, request)
+	//shippingDetails, discountCents, valid := handler.parseCheckoutForm(responseWriter, request)
+	shippingDetails, _, valid := handler.parseCheckoutForm(responseWriter, request)
 	if !valid {
 		return
 	}
@@ -128,7 +129,7 @@ func (handler *Handler) Submit(responseWriter http.ResponseWriter, request *http
 		handler.renderCheckoutError(responseWriter, request, http.StatusConflict, current, items, unavailableItem.Name+" is no longer available in the requested quantity. Update your cart before checking out.")
 		return
 	}
-	order, err := handler.orderStore.CreateFromCart(request.Context(), current.User.ID, items, discountCents, shippingDetails, checkoutAdminNotes, handler.keyring)
+	order, err := handler.orderStore.CreateFromCart(request.Context(), current.User.ID, items, shippingDetails, checkoutAdminNotes, handler.keyring)
 	if errors.Is(err, orders.ErrInsufficientInventory) {
 		currentItems, listErr := handler.cartStore.ListItems(request.Context(), current.User.ID)
 		if listErr != nil {
