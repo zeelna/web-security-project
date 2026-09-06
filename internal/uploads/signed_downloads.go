@@ -24,24 +24,21 @@ func VerifySignedDownload(downloadSigningKey [32]byte, fileID int64, expiresValu
 		return false
 	}
 	expires, err := strconv.ParseInt(expiresValue, 10, 64)
-	if err != nil {
+	if err != nil || expires <= now.Unix() {
 		return false
 	}
 	// Solution
-	decodedSignature, err := hex.DecodeString(signature)
+	providedSignatureDecoded, err := hex.DecodeString(signature)
 	if err != nil {
 		return false
 	}
 	expectedHMAC := signDownload(downloadSigningKey, fileID, expires)
-	decodedExpectedHMAC, err := hex.DecodeString(expectedHMAC)
+	expectedSignatureDecoded, err := hex.DecodeString(expectedHMAC)
 	if err != nil {
 		return false
 	}
 
-	if 1 != subtle.ConstantTimeCompare(decodedExpectedHMAC, decodedSignature) {
-		return false
-	}
-	return expires > now.Unix()
+	return 1 == subtle.ConstantTimeCompare(expectedSignatureDecoded, providedSignatureDecoded)
 }
 
 func signDownload(signingKey [32]byte, fileID, expires int64) string {
