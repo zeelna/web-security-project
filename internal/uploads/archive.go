@@ -71,7 +71,19 @@ func ExtractTaxDocumentArchive(encryptionKeyring Keyring, contents []byte, extra
 	importDirectory := filepath.Join(extractionDirectory, identifier)
 	plannedEntries := make([]plannedArchiveEntry, 0, len(archiveReader.File))
 	for _, entry := range archiveReader.File {
+		if entry.FileInfo().Mode() == os.ModeSymlink {
+			continue
+		}
 		entryDestination := filepath.Join(importDirectory, entry.Name)
+		// Helper to prevent Linux SymLinks, Windows \ characters and entries being absolute paths
+		if !isEntrySafe(entry) {
+			return ExtractedTaxDocumentArchive{}, &ArchiveImportError{Message: "Potential risk for ZipSlip Attack.", StatusCode: 400}
+		}
+		// Helper to prevent ZipSlip attack
+		if !isInsideDirectory(importDirectory, entryDestination) {
+			return ExtractedTaxDocumentArchive{}, &ArchiveImportError{Message: "ZIP archive entries attempt to escape destination.", StatusCode: 400}
+		}
+		// .ds_store, __MACOSX/ and other checks. "IsIgnoreArchiveEntry" MUST come later than "isEntrySafe()" and "isInsideDirectory"
 		if isIgnoredArchiveEntry(entry.Name) {
 			continue
 		}
@@ -190,4 +202,33 @@ func discardArchiveAfterWriteFailure(archive ExtractedTaxDocumentArchive, err er
 		return ExtractedTaxDocumentArchive{}, errors.Join(err, discardErr)
 	}
 	return ExtractedTaxDocumentArchive{}, err
+}
+
+func isInsideDirectory(basePath, entryDestination string) bool {
+	// Reject the entire archive when any entry could escape or redirect extraction."
+	relativePath, err := filepath.Rel(basePath, entryDestination)
+	if err != nil || relativePath == "" || // reject root
+		relativePath == ".." || // reject parent
+		strings.HasPrefix(relativePath, ".."+string(filepath.Separator)) ||
+		filepath.IsAbs(relativePath) || strings.HasPrefix(relativePath, "/"+string(filepath.Separator)) { // reject paths outside parent
+		return false
+	}
+	return true //, nil
+}
+
+func isEntrySafe(entry *zip.File) bool {
+	if filepath.IsAbs(entry.Name) || strings.HasPrefix(entry.Name, "/"+string(filepath.Separator)) || // reject absolute path
+		strings.Contains(entry.Name, "\\") || // reject Windows-style backslash separator
+		entry.Name == "" || // reject empty
+		entry.Name == ".." || // reject path traversal
+		strings.HasPrefix(entry.Name, ".."+string(filepath.Separator)) { // reject path traversal
+		return false
+	}
+	// Check whether entry is a symlink
+	mode := entry.FileInfo().Mode()
+	if mode&os.ModeSymlink != 0 {
+		// it's a symlink, whatever the permission bits say
+		return false
+	}
+	return true
 }
