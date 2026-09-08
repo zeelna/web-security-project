@@ -71,9 +71,14 @@ func (handler *Handler) Page(responseWriter http.ResponseWriter, request *http.R
 
 func (handler *Handler) AddItem(responseWriter http.ResponseWriter, request *http.Request) {
 	current, ok := handler.requireAuth(responseWriter, request)
-	if !ok || !handler.verifyCSRF(responseWriter, request, current.Session.CSRFToken) {
+	if !ok {
 		return
 	}
+
+	if !handler.verifyCSRF(responseWriter, request, current.Session.CSRFToken) {
+		return
+	}
+
 	productValue, productErr := httpx.FormValue(request, "productId")
 	quantityValue, quantityErr := httpx.FormValue(request, "quantity")
 	if productErr != nil || quantityErr != nil {
@@ -109,9 +114,14 @@ func (handler *Handler) AddItem(responseWriter http.ResponseWriter, request *htt
 
 func (handler *Handler) UpdateItem(responseWriter http.ResponseWriter, request *http.Request) {
 	current, ok := handler.requireAuth(responseWriter, request)
-	if !ok || !handler.verifyCSRF(responseWriter, request, current.Session.CSRFToken) {
+	if !ok {
 		return
 	}
+
+	if !handler.verifyCSRF(responseWriter, request, current.Session.CSRFToken) {
+		return
+	}
+
 	quantityValue, err := httpx.FormValue(request, "quantity")
 	if err != nil {
 		handler.invalidRequest(responseWriter)

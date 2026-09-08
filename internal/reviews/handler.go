@@ -43,9 +43,14 @@ func NewHandler(store *Store, accountStore *accounts.Store, renderer *templates.
 
 func (handler *Handler) Create(responseWriter http.ResponseWriter, request *http.Request) {
 	current, ok := handler.requireAuth(responseWriter, request)
-	if !ok || !handler.verifyCSRF(responseWriter, request, current.Session.CSRFToken) {
+	if !ok {
 		return
 	}
+
+	if !handler.verifyCSRF(responseWriter, request, current.Session.CSRFToken) {
+		return
+	}
+
 	productID, validProductID := httpx.ParseSafeInteger(request.PathValue("id"))
 	productExists, err := handler.store.ActiveProductExists(request.Context(), productID)
 	if err != nil {

@@ -214,14 +214,14 @@ func New(database *sql.DB, logger *logging.Logger, options Options) (*Applicatio
 			http.Error(responseWriter, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		}
 	})
-
-	//dynamicHandler := validateRequestOrigin(options.AppOrigin, renderer)(permissiveCORS(dynamicMux))
-	dynamicHandler := applyMiddleware(
-		dynamicMux,
-		permissiveCORS,
-		validateRequestOrigin(options.AppOrigin, renderer),
-		//recoverPanics(logger, renderer),
-	)
+	/*
+		dynamicHandler := applyMiddleware(
+			dynamicMux,
+			validateRequestOrigin(options.AppOrigin, renderer),
+			permissiveCORS,
+		)
+	*/
+	dynamicHandler := validateRequestOrigin(options.AppOrigin, renderer)(permissiveCORS(dynamicMux))
 
 	mainMux := http.NewServeMux()
 	mainMux.HandleFunc("GET /health", func(responseWriter http.ResponseWriter, _ *http.Request) {
@@ -243,6 +243,7 @@ func New(database *sql.DB, logger *logging.Logger, options Options) (*Applicatio
 		mainMux,
 		cspNonce,
 		contentTypeOptions,
+		contentSecurityPolicy,
 		recoverPanics(logger, renderer),
 	)
 	return &Application{Handler: handler, publicRoot: publicRoot}, nil

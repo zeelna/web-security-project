@@ -76,6 +76,16 @@ func validateRequestOrigin(appOrigin string, renderer *templates.Renderer) middl
 	}
 }
 
+func contentSecurityPolicy(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+		cspNonceValue := httpx.CSPNonce(request.Context())
+		//strictBaseline := "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'"
+		strictBaseline := fmt.Sprintf("default-src 'self'; script-src 'self' 'nonce-%s'; style-src 'self'; img-src 'self' data:; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'", cspNonceValue)
+		responseWriter.Header().Set("Content-Security-Policy", strictBaseline)
+		next.ServeHTTP(responseWriter, request)
+	})
+}
+
 func contentTypeOptions(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
 		responseWriter.Header().Set("X-Content-Type-Options", "nosniff")
