@@ -30,6 +30,23 @@ func applyMiddleware(handler http.Handler, middlewareChain ...middleware) http.H
 	return handler
 }
 
+func unsecureAllowAllOrigin(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+		// Set the public origin header
+		responseWriter.Header().Set("Access-Control-Allow-Origin", "*")
+
+		// If it's a preflight request:
+		if request.Method == http.MethodOptions { // OPTIONS (not GET)
+			responseWriter.Header().Set("Access-Control-Allow-Methods", "GET")
+			responseWriter.WriteHeader(http.StatusNoContent)
+			return // Preflight is answered; don't call next.ServeHTTP
+		}
+
+		// For GET (or other actual requests), pass down to the endpoint handler
+		next.ServeHTTP(responseWriter, request)
+	})
+}
+
 func permissiveCORS(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
 		if origin := request.Header.Get("Origin"); origin != "" {
@@ -80,8 +97,10 @@ func contentSecurityPolicy(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
 		cspNonceValue := httpx.CSPNonce(request.Context())
 		//strictBaseline := "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'"
-		strictBaseline := fmt.Sprintf("default-src 'self'; script-src 'self' 'nonce-%s'; style-src 'self'; img-src 'self' data:; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'", cspNonceValue)
+		strictBaseline := fmt.Sprintf("default-src 'self'; script-src 'self' 'nonce-%s'; style-src 'self'; img-src 'self' data:; frame-src 'self'; frame-ancestors 'self'; object-src 'none'; base-uri 'self'; form-action 'self'", cspNonceValue)
 		responseWriter.Header().Set("Content-Security-Policy", strictBaseline)
+		responseWriter.Header().Set("X-Frame-Options", "SAMEORIGIN")                      // controls which origins may frame your pages.
+		responseWriter.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin") // controls how much URL information is sent in the Referer header
 		next.ServeHTTP(responseWriter, request)
 	})
 }
@@ -89,6 +108,41 @@ func contentSecurityPolicy(next http.Handler) http.Handler {
 func contentTypeOptions(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
 		responseWriter.Header().Set("X-Content-Type-Options", "nosniff")
+		next.ServeHTTP(responseWriter, request)
+	})
+}
+
+func securityHeaders(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+		nonceBytes := make([]byte, 16)
+		if _, err := rand.Read(nonceBytes); err != nil {
+			http.Error(responseWriter, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			return
+		}
+		nonce := base64.StdEncoding.EncodeToString(nonceBytes)
+		request = request.WithContext(httpx.WithCSPNonce(request.Context(), nonce))
+
+		strictBaseline := fmt.Sprintf("default-src 'self'; script-src 'self' 'nonce-%s'; style-src 'self'; img-src 'self' data:; frame-src 'self'; frame-ancestors 'self'; object-src 'none'; base-uri 'self'; form-action 'self'", nonce)
+		responseWriter.Header().Set("Content-Security-Policy", strictBaseline)
+		responseWriter.Header().Set("X-Frame-Options", "SAMEORIGIN")                      // controls which origins may frame your pages.
+		responseWriter.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin") // controls how much URL information is sent in the Referer header
+		responseWriter.Header().Set("X-Content-Type-Options", "nosniff")
+
+		responseWriter.Header().Set("Cross-Origin-Opener-Policy", "same-origin")
+		responseWriter.Header().Set("Cross-Origin-Resource-Policy", "same-origin")
+		responseWriter.Header().Set("Origin-Agent-Cluster", "?1")
+		responseWriter.Header().Set("X-DNS-Prefetch-Control", "off")
+		responseWriter.Header().Set("X-Download-Options", "noopen")
+		responseWriter.Header().Set("X-Permitted-Cross-Domain-Policies", "none")
+		responseWriter.Header().Set("X-XSS-Protection", "0")
+
+		next.ServeHTTP(responseWriter, request)
+	})
+}
+
+func allowCrossOrigin(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+		responseWriter.Header().Set("Cross-Origin-Resource-Policy", "cross-origin")
 		next.ServeHTTP(responseWriter, request)
 	})
 }
