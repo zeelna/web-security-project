@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/bootdotdev/learn-web-security/internal/identifiers"
 )
 
 type Keyring interface {
@@ -20,21 +22,36 @@ type StoredDocument struct {
 }
 
 func StoreDocument(contents []byte, uploadDirectory string, encryptionKeyring Keyring) (StoredDocument, bool, error) {
+	// We put this 'encryptDocument' first to avoid situation where this produces error, and burns a .newUUID() call.
 	storedContents, encrypted, err := encryptDocument(contents, encryptionKeyring)
 	if err != nil {
 		return StoredDocument{}, false, err
 	}
+
+	// Helper function to check file type
+	contentType, extension, valid := detectDocumentType(contents)
+	if !valid {
+		return StoredDocument{}, false, nil // why: 'err := nil' in return? answer in internal.uploads.handler.Upload check err!=nil before !valid. Therefore, HTTP.BadRequest displays "Choose a valid PDF, JPEG, PNG, or WebP file.",
+	}
+	// Assign UUID as filename (should be late in logic, to avoid any error's executing and burning UUID)
+	identifier, err := identifiers.NewUUID()
+	if err != nil {
+		return StoredDocument{}, false, fmt.Errorf("create upload filename: %w", err)
+	}
+
 	if err := os.MkdirAll(uploadDirectory, 0o755); err != nil {
 		return StoredDocument{}, false, fmt.Errorf("create upload directory: %w", err)
 	}
-	storagePath := filepath.Join(uploadDirectory, "uploaded-document")
+	//storagePath := filepath.Join(uploadDirectory, "uploaded-document")
+	storagePath := filepath.Join(uploadDirectory, identifier+extension)
 	if encrypted {
 		storagePath += ".enc"
 	}
 	if err := writeDocument(storagePath, storedContents, encrypted); err != nil {
 		return StoredDocument{}, false, err
 	}
-	return StoredDocument{ContentType: "application/octet-stream", StoragePath: storagePath}, true, nil
+	return StoredDocument{ContentType: contentType, StoragePath: storagePath}, true, nil
+	//return StoredDocument{ContentType: "application/octet-stream", StoragePath: storagePath}, true, nil
 }
 
 func detectDocumentType(contents []byte) (string, string, bool) {

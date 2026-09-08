@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"mime"
 	"os"
 	"path/filepath"
 	"strings"
@@ -71,9 +70,6 @@ func ExtractTaxDocumentArchive(encryptionKeyring Keyring, contents []byte, extra
 	importDirectory := filepath.Join(extractionDirectory, identifier)
 	plannedEntries := make([]plannedArchiveEntry, 0, len(archiveReader.File))
 	for _, entry := range archiveReader.File {
-		if entry.FileInfo().Mode() == os.ModeSymlink {
-			continue
-		}
 		entryDestination := filepath.Join(importDirectory, entry.Name)
 		// Helper to prevent Linux SymLinks, Windows \ characters and entries being absolute paths
 		if !isEntrySafe(entry) {
@@ -95,17 +91,24 @@ func ExtractTaxDocumentArchive(encryptionKeyring Keyring, contents []byte, extra
 		if err != nil {
 			return ExtractedTaxDocumentArchive{}, &ArchiveImportError{Message: "Choose a valid ZIP archive.", StatusCode: 400}
 		}
+		/* // allows attacker-controlled filename (unsupported bytes)
 		contentType := mime.TypeByExtension(filepath.Ext(entry.Name))
 		if contentType == "" {
 			contentType = "application/octet-stream"
 		}
+		*/
+		contentType, _, valid := detectDocumentType(entryContents)
+		if !valid {
+			return ExtractedTaxDocumentArchive{}, &ArchiveImportError{Message: "ZIP archive contains entry with an unsupported file type", StatusCode: 400}
+		}
+		// Encryption
 		storedContents, encrypted, err := encryptDocument(entryContents, encryptionKeyring)
 		if err != nil {
 			return ExtractedTaxDocumentArchive{}, err
 		}
-		storagePath := entryDestination
+		storagePath := entryDestination // file123.pdf
 		if encrypted {
-			storagePath += ".enc"
+			storagePath += ".enc" // file123.pdf -> file123.pdf.enc
 		}
 		plannedEntries = append(plannedEntries, plannedArchiveEntry{
 			destination: storagePath, contents: storedContents, encrypted: encrypted,
