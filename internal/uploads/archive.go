@@ -71,15 +71,9 @@ func ExtractTaxDocumentArchive(encryptionKeyring Keyring, contents []byte, extra
 	plannedEntries := make([]plannedArchiveEntry, 0, len(archiveReader.File))
 	for _, entry := range archiveReader.File {
 		entryDestination := filepath.Join(importDirectory, entry.Name)
-		// Helper to prevent Linux SymLinks, Windows \ characters and entries being absolute paths
-		if !isEntrySafe(entry) {
-			return ExtractedTaxDocumentArchive{}, &ArchiveImportError{Message: "Potential risk for ZipSlip Attack.", StatusCode: 400}
+		if filepath.IsAbs(entry.Name) || strings.Contains(entry.Name, "\\") || !isInsideDirectory(importDirectory, entryDestination) || entry.FileInfo().Mode()&os.ModeSymlink != 0 {
+			return ExtractedTaxDocumentArchive{}, &ArchiveImportError{Message: "Archive contains an unsafe entry path.", StatusCode: 400}
 		}
-		// Helper to prevent ZipSlip attack
-		if !isInsideDirectory(importDirectory, entryDestination) {
-			return ExtractedTaxDocumentArchive{}, &ArchiveImportError{Message: "ZIP archive entries attempt to escape destination.", StatusCode: 400}
-		}
-		// .ds_store, __MACOSX/ and other checks. "IsIgnoreArchiveEntry" MUST come later than "isEntrySafe()" and "isInsideDirectory"
 		if isIgnoredArchiveEntry(entry.Name) {
 			continue
 		}
@@ -91,24 +85,17 @@ func ExtractTaxDocumentArchive(encryptionKeyring Keyring, contents []byte, extra
 		if err != nil {
 			return ExtractedTaxDocumentArchive{}, &ArchiveImportError{Message: "Choose a valid ZIP archive.", StatusCode: 400}
 		}
-		/* // allows attacker-controlled filename (unsupported bytes)
-		contentType := mime.TypeByExtension(filepath.Ext(entry.Name))
-		if contentType == "" {
-			contentType = "application/octet-stream"
-		}
-		*/
 		contentType, _, valid := detectDocumentType(entryContents)
 		if !valid {
-			return ExtractedTaxDocumentArchive{}, &ArchiveImportError{Message: "ZIP archive contains entry with an unsupported file type", StatusCode: 400}
+			return ExtractedTaxDocumentArchive{}, &ArchiveImportError{Message: "Archive contains an unsupported tax document.", StatusCode: 400}
 		}
-		// Encryption
 		storedContents, encrypted, err := encryptDocument(entryContents, encryptionKeyring)
 		if err != nil {
 			return ExtractedTaxDocumentArchive{}, err
 		}
-		storagePath := entryDestination // file123.pdf
+		storagePath := entryDestination
 		if encrypted {
-			storagePath += ".enc" // file123.pdf -> file123.pdf.enc
+			storagePath += ".enc"
 		}
 		plannedEntries = append(plannedEntries, plannedArchiveEntry{
 			destination: storagePath, contents: storedContents, encrypted: encrypted,
@@ -207,31 +194,7 @@ func discardArchiveAfterWriteFailure(archive ExtractedTaxDocumentArchive, err er
 	return ExtractedTaxDocumentArchive{}, err
 }
 
-func isInsideDirectory(basePath, entryDestination string) bool {
-	// Reject the entire archive when any entry could escape or redirect extraction."
-	relativePath, err := filepath.Rel(basePath, entryDestination)
-	if err != nil || relativePath == "" || // reject root
-		relativePath == ".." || // reject parent
-		strings.HasPrefix(relativePath, ".."+string(filepath.Separator)) ||
-		filepath.IsAbs(relativePath) || strings.HasPrefix(relativePath, "/"+string(filepath.Separator)) { // reject paths outside parent
-		return false
-	}
-	return true //, nil
-}
-
-func isEntrySafe(entry *zip.File) bool {
-	if filepath.IsAbs(entry.Name) || strings.HasPrefix(entry.Name, "/"+string(filepath.Separator)) || // reject absolute path
-		strings.Contains(entry.Name, "\\") || // reject Windows-style backslash separator
-		entry.Name == "" || // reject empty
-		entry.Name == ".." || // reject path traversal
-		strings.HasPrefix(entry.Name, ".."+string(filepath.Separator)) { // reject path traversal
-		return false
-	}
-	// Check whether entry is a symlink
-	mode := entry.FileInfo().Mode()
-	if mode&os.ModeSymlink != 0 {
-		// it's a symlink, whatever the permission bits say
-		return false
-	}
-	return true
+func isInsideDirectory(directory, candidatePath string) bool {
+	relativePath, err := filepath.Rel(directory, candidatePath)
+	return err == nil && relativePath != "" && relativePath != ".." && !strings.HasPrefix(relativePath, ".."+string(filepath.Separator)) && !filepath.IsAbs(relativePath)
 }

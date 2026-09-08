@@ -2,16 +2,16 @@
 <li class="product-card">
   <div class="product-image-frame product-card-image-frame">
     <img
-      class="product-card-image"
-      src="{{.ImagePath}}"
-      alt="{{.Name}} product photo"
-      width="640"
-      height="640"
-      loading="lazy"
+            class="product-card-image"
+            src="{{.ImagePath}}"
+            alt="{{.Name}} product photo"
+            width="640"
+            height="640"
+            loading="lazy"
     />
     {{if .OutOfStock}}<span class="stock-overlay" aria-hidden="true"
-      >Out of stock</span
-    >{{end}}
+  >Out of stock</span
+  >{{end}}
   </div>
   <div class="product-card-body">
     <a class="product-link" href="/products/{{.ID}}">{{.Name}}</a> – {{money
@@ -26,10 +26,10 @@
     {{else}}
     <form method="post" action="/cart/items" class="inline-cart-form">
       {{if .CSRFToken}}<input
-        name="csrfToken"
-        type="hidden"
-        value="{{.CSRFToken}}"
-      />{{end}}
+            name="csrfToken"
+            type="hidden"
+            value="{{.CSRFToken}}"
+    />{{end}}
       <input name="productId" type="hidden" value="{{.ID}}" />
       <input name="quantity" type="hidden" value="1" />
       <button type="submit">Add to cart</button>

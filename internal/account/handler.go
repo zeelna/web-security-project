@@ -62,7 +62,6 @@ func (handler *Handler) Page(responseWriter http.ResponseWriter, request *http.R
 	if !ok {
 		return
 	}
-
 	_ = handler.logger.Event("account_accessed", map[string]any{
 		"userId":    current.User.ID,
 		"email":     current.User.Email,
@@ -78,9 +77,16 @@ func (handler *Handler) UpdateEmail(responseWriter http.ResponseWriter, request 
 	if !ok || !handler.verifyCSRF(responseWriter, request, current.Session.CSRFToken) {
 		return
 	}
+	currentPassword, passwordErr := httpx.FormValue(request, "currentPassword")
 	email, emailErr := httpx.FormValue(request, "email")
-	if emailErr != nil {
+	if passwordErr != nil || emailErr != nil {
 		handler.errorPage(responseWriter, http.StatusBadRequest, "Invalid Request", "The submitted form is invalid.")
+		return
+	}
+	if currentPassword == "" || !passwords.Verify(currentPassword, current.User.PasswordHash) {
+		if err := handler.renderPage(responseWriter, http.StatusForbidden, current, "Re-enter your current password to change your email."); err != nil {
+			handler.internalError(responseWriter, request, err)
+		}
 		return
 	}
 	email = accounts.NormalizeEmail(email)
@@ -90,20 +96,6 @@ func (handler *Handler) UpdateEmail(responseWriter http.ResponseWriter, request 
 		}
 		return
 	}
-	// Verify that password is correct
-	currentPassword, currentPasswordErr := httpx.FormValue(request, "currentPassword")
-	if currentPasswordErr != nil {
-		handler.errorPage(responseWriter, http.StatusBadRequest, "Invalid Request", "The submitted form is invalid.")
-		return
-	}
-	if false == passwords.Verify(currentPassword, current.User.PasswordHash) {
-		if err := handler.renderPage(responseWriter, http.StatusForbidden,
-			current, "Re-enter your current password to change your email."); err != nil {
-			handler.internalError(responseWriter, request, err)
-		}
-		return
-	}
-
 	existingUser, found, err := handler.accountStore.FindUserByEmail(request.Context(), email)
 	if err != nil {
 		handler.internalError(responseWriter, request, err)

@@ -29,7 +29,7 @@
 <nav class="page-nav" aria-label="Primary">
   <a class="brand-link" href="/">Bearly Secure</a
   ><a href="/account">Hello, {{.DisplayName}}</a
-  ><a href="/account/reviews">Reviews</a>
+><a href="/account/reviews">Reviews</a>
 </nav>
 <p class="eyebrow">Review for {{.Review.ProductName}}</p>
 <h1>Edit Review</h1>
@@ -37,43 +37,43 @@
 <p class="error">{{.Error}}</p>
 {{end}}
 <form
-  method="post"
-  action="/account/reviews/{{.Review.ID}}"
-  class="review-form"
+        method="post"
+        action="/account/reviews/{{.Review.ID}}"
+        class="review-form"
 >
   <input name="csrfToken" type="hidden" value="{{.CSRFToken}}" /><label
-    >Rating<select name="rating" required>
-      <option value="5" {{if eq .Review.Rating 5}}selected{{end}}>
-        5 stars
-      </option>
-      <option value="4" {{if eq .Review.Rating 4}}selected{{end}}>
-        4 stars
-      </option>
-      <option value="3" {{if eq .Review.Rating 3}}selected{{end}}>
-        3 stars
-      </option>
-      <option value="2" {{if eq .Review.Rating 2}}selected{{end}}>
-        2 stars
-      </option>
-      <option value="1" {{if eq .Review.Rating 1}}selected{{end}}>
-        1 stars
-      </option>
-    </select></label
-  ><label
-    >Review<textarea name="body" rows="5" maxlength="1000" required>
+>Rating<select name="rating" required>
+  <option value="5" {{if eq .Review.Rating 5}}selected{{end}}>
+    5 stars
+  </option>
+  <option value="4" {{if eq .Review.Rating 4}}selected{{end}}>
+    4 stars
+  </option>
+  <option value="3" {{if eq .Review.Rating 3}}selected{{end}}>
+    3 stars
+  </option>
+  <option value="2" {{if eq .Review.Rating 2}}selected{{end}}>
+    2 stars
+  </option>
+  <option value="1" {{if eq .Review.Rating 1}}selected{{end}}>
+    1 stars
+  </option>
+</select></label
+><label
+>Review<textarea name="body" rows="5" maxlength="1000" required>
 {{.Review.Body}}</textarea></label
-  ><button type="submit">Save review</button>
+><button type="submit">Save review</button>
 </form>
 <form
-  method="post"
-  action="/account/reviews/{{.Review.ID}}/delete"
-  class="delete-form"
+        method="post"
+        action="/account/reviews/{{.Review.ID}}/delete"
+        class="delete-form"
 >
   <input name="csrfToken" type="hidden" value="{{.CSRFToken}}" /><button
-    type="submit"
-    class="danger-link"
-  >
-    Delete review
-  </button>
+        type="submit"
+        class="danger-link"
+>
+  Delete review
+</button>
 </form>
 {{template "document-end" .}}{{end}}

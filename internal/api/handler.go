@@ -55,28 +55,21 @@ func (handler *Handler) AccountOrders(responseWriter http.ResponseWriter, reques
 }
 
 func (handler *Handler) Order(responseWriter http.ResponseWriter, request *http.Request) {
-	currentSession, ok := handler.requireAuthentication(responseWriter, request)
+	current, ok := handler.requireAuthentication(responseWriter, request)
 	if !ok {
 		return
 	}
 	orderID, valid := httpx.ParseSafeInteger(request.PathValue("id"))
-	// Input Validation
 	if !valid {
 		httpx.RespondWithJSON(responseWriter, http.StatusNotFound, map[string]string{"error": "Order not found"})
 		return
 	}
-	// Database read once 1) input correct
 	order, found, err := handler.orderStore.FindByID(request.Context(), orderID)
 	if err != nil {
 		handler.internalError(responseWriter, request, err)
 		return
 	}
-	if !found {
-		httpx.RespondWithJSON(responseWriter, http.StatusNotFound, map[string]string{"error": "Order not found"})
-		return
-	}
-	// ABAC - make sure the order's ownerID matched authenticated session's userID.
-	if currentSession.User.ID != order.UserID {
+	if !found || order.UserID != current.User.ID {
 		httpx.RespondWithJSON(responseWriter, http.StatusNotFound, map[string]string{"error": "Order not found"})
 		return
 	}
@@ -102,33 +95,19 @@ func (handler *Handler) Products(responseWriter http.ResponseWriter, request *ht
 }
 
 func (handler *Handler) WarehouseOrders(responseWriter http.ResponseWriter, request *http.Request) {
-	/*
-		keyBytes := make([]byte, 32)
-		if _, err := rand.Read(keyBytes); err != nil {
-			handler.internalError(responseWriter, request, err)
-			return
-		}
-	*/
-	apiKeyBytes := request.Header.Get("X-API-Key")
-	if apiKeyBytes == "" {
-		httpx.RespondWithJSON(responseWriter, http.StatusUnauthorized, map[string]string{"error": "X-API-Key is required"})
-		return
-	}
-	//apiKey := hex.EncodeToString([]byte(apiKeyBytes))
-	key, valid, err := handler.apiStore.FindKey(request.Context(), apiKeyBytes)
+	apiKey, found, err := handler.apiStore.FindKey(request.Context(), request.Header.Get("X-API-Key"))
 	if err != nil {
 		handler.internalError(responseWriter, request, err)
 		return
 	}
-	if !valid {
-		httpx.RespondWithJSON(responseWriter, http.StatusUnauthorized, map[string]string{"error": "API key not found or invalid"})
+	if !found {
+		httpx.RespondWithJSON(responseWriter, http.StatusUnauthorized, map[string]string{"error": "Invalid API key"})
 		return
 	}
-	if key.Scope != "orders:read" {
-		httpx.RespondWithJSON(responseWriter, http.StatusForbidden, map[string]string{"error": "API key is missing 'orders:read'"})
+	if apiKey.Scope != "orders:read" {
+		httpx.RespondWithJSON(responseWriter, http.StatusForbidden, map[string]string{"error": "API key scope is not allowed"})
 		return
 	}
-
 	orders, err := handler.orderStore.ListAll(request.Context())
 	if err != nil {
 		handler.internalError(responseWriter, request, err)

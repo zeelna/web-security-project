@@ -129,26 +129,18 @@ func verifyAt(code, secret string, timestamp time.Time) bool {
 }
 
 func (store *Store) VerifyAndConsume(ctx context.Context, userID int64, code, secret string) (bool, error) {
-	// capture the current time once and reject the code if verifyAt fails.
-	currentTime := store.now()
-	if !verifyAt(code, secret, currentTime) {
+	now := store.now()
+	if !verifyAt(code, secret, now) {
 		return false, nil
 	}
-	// Compute the current 30-second time step from the Unix timestamp and totpPeriodSeconds
-	step := currentTime.Unix() / totpPeriodSeconds
-	// Use the pre-generated ConsumeTOTPStep query to atomically record that step for the user
-	result, err := store.queries.ConsumeTOTPStep(ctx, dbgen.ConsumeTOTPStepParams{
-		TimeStep: &step,
-		UserID:   userID,
-	})
+	timeStep := now.Unix() / totpPeriodSeconds
+	result, err := store.queries.ConsumeTOTPStep(ctx, dbgen.ConsumeTOTPStepParams{TimeStep: &timeStep, UserID: userID})
 	if err != nil {
-		return false, fmt.Errorf("database failed to update TOTP step: %w", err)
+		return false, fmt.Errorf("consume TOTP time step: %w", err)
 	}
-
-	// Return true only when the update changes one row, and return database errors to the caller.
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		return false, fmt.Errorf("unexpected driver error: %w", err)
+		return false, fmt.Errorf("count consumed TOTP time steps: %w", err)
 	}
 	return rowsAffected == 1, nil
 }
@@ -299,16 +291,16 @@ func (store *Store) DeleteChallenge(ctx context.Context, token string) error {
 }
 
 func (store *Store) ConsumeBackupCode(ctx context.Context, userID int64, code string) (bool, error) {
-	backupCode, err := store.queries.ConsumeTOTPBackupCode(ctx, dbgen.ConsumeTOTPBackupCodeParams{
+	result, err := store.queries.ConsumeTOTPBackupCode(ctx, dbgen.ConsumeTOTPBackupCodeParams{
 		UserID:   userID,
 		CodeHash: hashToken(code),
 	})
 	if err != nil {
-		return false, fmt.Errorf("find TOTP backup code: %w", err)
+		return false, fmt.Errorf("consume TOTP backup code: %w", err)
 	}
-	rowsAffected, err := backupCode.RowsAffected()
+	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		return false, fmt.Errorf("count TOTP backup code rows affected: %w", err)
+		return false, fmt.Errorf("count consumed TOTP backup codes: %w", err)
 	}
 	return rowsAffected == 1, nil
 }

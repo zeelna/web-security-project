@@ -3,7 +3,6 @@ package checkout
 import (
 	"errors"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
@@ -96,8 +95,7 @@ func (handler *Handler) Submit(responseWriter http.ResponseWriter, request *http
 		handler.renderCheckoutError(responseWriter, request, http.StatusConflict, current, items, unavailableItem.Name+" is no longer available in the requested quantity. Update your cart before checking out.")
 		return
 	}
-	//shippingDetails, discountCents, valid := handler.parseCheckoutForm(responseWriter, request)
-	shippingDetails, _, valid := handler.parseCheckoutForm(responseWriter, request)
+	shippingDetails, valid := handler.parseCheckoutForm(responseWriter, request)
 	if !valid {
 		return
 	}
@@ -188,14 +186,14 @@ func (handler *Handler) Processing(responseWriter http.ResponseWriter, request *
 	}
 }
 
-func (handler *Handler) parseCheckoutForm(responseWriter http.ResponseWriter, request *http.Request) (orders.ShippingDetails, int64, bool) {
+func (handler *Handler) parseCheckoutForm(responseWriter http.ResponseWriter, request *http.Request) (orders.ShippingDetails, bool) {
 	fieldNames := []string{"shippingName", "shippingAddress", "shippingCity", "shippingRegion", "shippingPostalCode"}
 	fieldValues := make(map[string]string, len(fieldNames))
 	for _, fieldName := range fieldNames {
 		fieldValue, err := httpx.FormValue(request, fieldName)
 		if err != nil {
 			handler.errorPage(responseWriter, http.StatusBadRequest, "Invalid Request", "The submitted form is invalid.")
-			return orders.ShippingDetails{}, 0, false
+			return orders.ShippingDetails{}, false
 		}
 		fieldValues[fieldName] = fieldValue
 	}
@@ -205,7 +203,7 @@ func (handler *Handler) parseCheckoutForm(responseWriter http.ResponseWriter, re
 		City:       strings.TrimSpace(fieldValues["shippingCity"]),
 		Region:     strings.TrimSpace(fieldValues["shippingRegion"]),
 		PostalCode: strings.TrimSpace(fieldValues["shippingPostalCode"]),
-	}, parseDiscount(request.PostForm.Get("discountCents")), true
+	}, true
 }
 
 func (handler *Handler) renderPage(responseWriter http.ResponseWriter, statusCode int, current accounts.CurrentSession, items []cart.Item, errorMessage string) error {
@@ -256,9 +254,4 @@ func firstUnavailable(items []cart.Item) *cart.Item {
 		}
 	}
 	return nil
-}
-
-func parseDiscount(value string) int64 {
-	discount, _ := strconv.ParseInt(value, 10, 64)
-	return discount
 }

@@ -56,7 +56,6 @@ type currentUserView struct {
 
 type reviewView struct {
 	Review
-	//BodyHTML template.HTML
 	CanEdit bool
 }
 
@@ -242,8 +241,7 @@ func makeReviewViews(reviews []Review, current *currentUserView) []reviewView {
 	viewReviews := make([]reviewView, 0, len(reviews))
 	for _, review := range reviews {
 		viewReviews = append(viewReviews, reviewView{
-			Review: review,
-			//BodyHTML: template.HTML(review.Body), // Intentionally unsafe starter behavior for the XSS lesson.
+			Review:  review,
 			CanEdit: current != nil && current.ID == review.UserID,
 		})
 	}

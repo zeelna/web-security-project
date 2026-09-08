@@ -50,15 +50,14 @@ func (store *Store) ListProducts(ctx context.Context, maxResults int64) ([]Produ
 }
 
 func (store *Store) SearchProducts(ctx context.Context, query string, maxResults int64) ([]Product, error) {
-	products, err := store.queries.SearchActiveProducts(ctx, dbgen.SearchActiveProductsParams{
+	rows, err := store.queries.SearchActiveProducts(ctx, dbgen.SearchActiveProductsParams{
 		Pattern:    "%" + query + "%",
 		MaxResults: maxResults,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("search products: %w", err)
 	}
-	mappedProducts := mapProducts(products) // value from type []dbgen.Product mapped into value suitable for type []storefront.store.Product
-	return mappedProducts, nil
+	return mapProducts(rows), nil
 }
 
 func (store *Store) ListAllProducts(ctx context.Context) ([]Product, error) {

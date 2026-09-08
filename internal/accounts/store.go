@@ -21,7 +21,7 @@ const defaultSessionTTL = 30 * 24 * time.Hour
 var ErrEmailExists = errors.New("an account already exists for that email")
 
 func NormalizeEmail(email string) string {
-	return strings.ToLower(strings.Trim(email, " "))
+	return strings.ToLower(strings.TrimSpace(email))
 }
 
 type User struct {
@@ -190,20 +190,13 @@ func (store *Store) CurrentSession(ctx context.Context, token string) (CurrentSe
 		return CurrentSession{}, false, fmt.Errorf("find session: %w", err)
 	}
 	expiresAt, err := time.Parse(time.RFC3339, row.ExpiresAt)
-	if err != nil || !store.now().Before(expiresAt) {
+	if err != nil || row.RevokedAt != nil || !store.now().Before(expiresAt) {
 		return CurrentSession{}, false, nil
 	}
-
 	user, found, err := store.FindUserByID(ctx, row.UserID)
 	if err != nil || !found {
 		return CurrentSession{}, false, err
 	}
-
-	if row.RevokedAt != nil {
-		return CurrentSession{}, false, nil
-	}
-	//revokedAt, err := time.Parse(time.RFC3339, row.RevokedAt)
-
 	return CurrentSession{
 		Session: Session{
 			UserID:              row.UserID,

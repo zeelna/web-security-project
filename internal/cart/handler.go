@@ -12,6 +12,8 @@ import (
 	"github.com/bootdotdev/learn-web-security/internal/templates"
 )
 
+var cartQuantityPattern = regexp.MustCompile(`^(0|[1-9]\d?)$`)
+
 type itemView struct {
 	Item
 	Availability Availability
@@ -187,14 +189,9 @@ func makeItemViews(items []Item) []itemView {
 }
 
 func parseQuantity(value string, minimum int64) (int64, bool) {
-	// 1) validate -> answers question "is this input allowed"
-	var numberPattern = regexp.MustCompile(`^(0|[1-9][0-9]?)$`)
-	if !numberPattern.MatchString(value) { // instead, could create helper function named 'isValidQuantity(value string)'
+	if !cartQuantityPattern.MatchString(value) {
 		return 0, false
 	}
-	parsedQuantity, err := strconv.ParseInt(value, 10, 64)
-	if err != nil {
-		return 0, false
-	}
-	return parsedQuantity, parsedQuantity >= minimum && parsedQuantity <= MaximumQuantity
+	quantity, err := strconv.ParseInt(value, 10, 64)
+	return quantity, err == nil && quantity >= minimum && quantity <= MaximumQuantity
 }
