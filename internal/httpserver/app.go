@@ -2,7 +2,6 @@ package httpserver
 
 import (
 	"context"
-	"crypto/rand"
 	"database/sql"
 	"fmt"
 	"net/http"
@@ -50,6 +49,7 @@ type Options struct {
 	FixtureDirectory        string
 	TemplateDirectory       string
 	PublicDirectory         string
+	DownloadSigningKey      [32]byte
 }
 
 type Application struct {
@@ -100,10 +100,12 @@ func New(database *sql.DB, logger *logging.Logger, options Options) (*Applicatio
 		logger,
 		unboundedPublicProductResults,
 	)
+	/* // Generate a random 32byte length key as DOWNLOAD_SIGNING_KEY. New feature is to read it from .env file. Therefore, commenting out this section
 	var downloadSigningKey [32]byte
 	if _, err := rand.Read(downloadSigningKey[:]); err != nil {
 		return nil, fmt.Errorf("generate download signing key: %w", err)
 	}
+	*/
 	uploadHandler := uploads.NewHandler(
 		accountStore,
 		uploadStore,
@@ -112,7 +114,8 @@ func New(database *sql.DB, logger *logging.Logger, options Options) (*Applicatio
 		options.EncryptionKeyring,
 		uploadDirectory,
 		defaultUploadBytes,
-		downloadSigningKey,
+		options.DownloadSigningKey,
+		//downloadSigningKey, // commenting out, due to now reading it from .env
 	)
 	adminHandler := admin.NewHandler(admin.NewStore(database), accountStore, renderer, logger, imagepreview.NewService(), options.MaxUploadBytes)
 	apiHandler := api.NewHandler(accountStore, orderStore, productStore, api.NewStore(database), logger, unboundedPublicProductResults)
@@ -144,11 +147,11 @@ func New(database *sql.DB, logger *logging.Logger, options Options) (*Applicatio
 	dynamicMux.HandleFunc("GET /{$}", storefrontHandler.Storefront)
 	dynamicMux.HandleFunc("GET /search", storefrontHandler.Search)
 	dynamicMux.HandleFunc("GET /products/{id}", storefrontHandler.Product)
-	dynamicMux.HandleFunc("GET /api/account/orders", apiHandler.AccountOrders) 								// public API
-	dynamicMux.HandleFunc("GET /api/orders/{id}", apiHandler.Order) 											// public API
-	dynamicMux.Handle("GET /api/products", unsecureAllowAllOrigin(http.HandlerFunc(apiHandler.Products))) 	// public API
+	dynamicMux.HandleFunc("GET /api/account/orders", apiHandler.AccountOrders)                                // public API
+	dynamicMux.HandleFunc("GET /api/orders/{id}", apiHandler.Order)                                           // public API
+	dynamicMux.Handle("GET /api/products", unsecureAllowAllOrigin(http.HandlerFunc(apiHandler.Products)))     // public API
 	dynamicMux.Handle("OPTIONS /api/products", unsecureAllowAllOrigin(http.HandlerFunc(apiHandler.Products))) // public API
-	dynamicMux.HandleFunc("GET /api/integrations/warehouse/orders", apiHandler.WarehouseOrders) 				// public API
+	dynamicMux.HandleFunc("GET /api/integrations/warehouse/orders", apiHandler.WarehouseOrders)               // public API
 	dynamicMux.Handle("POST /products/{id}/reviews", parseForm(options.MaxRequestBodyBytes, renderer)(http.HandlerFunc(reviewHandler.Create)))
 	dynamicMux.HandleFunc("GET /login", authenticationHandler.LoginPage)
 	dynamicMux.Handle("POST /login", parseForm(options.MaxRequestBodyBytes, renderer)(http.HandlerFunc(authenticationHandler.Login)))

@@ -5,9 +5,8 @@ data/*.log
 data/uploads/*
 !data/uploads/mystery-shack-tax-exemption.pdf
 data/bulk-tax-documents/
-.env
-.env.local
-.env.*.local
+.env*
+!.env.example
 
 # If you prefer the allow list template instead of the deny list, see community template:
 # https://github.com/github/gitignore/blob/main/community/Golang/Go.AllowList.gitignore

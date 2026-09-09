@@ -4,6 +4,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"maps"
 	"math"
 	"net/url"
 	"os"
@@ -11,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/joho/godotenv"
 )
 
 const (
@@ -36,6 +39,7 @@ type Config struct {
 	MaxPublicProductResults    int
 	ActiveEncryptionKeyVersion string
 	EncryptionKeys             map[string][32]byte
+	DownloadSigningKey         [32]byte
 }
 
 type AttackerLabConfig struct {
@@ -43,17 +47,55 @@ type AttackerLabConfig struct {
 }
 
 func Load(workingDirectory string) (Config, error) {
-	return Parse(processEnvironment(), workingDirectory)
+	// 'workingDirectory' is not /../mydir/.env, but /../mydir, therefore use filepath.Join()
+	processEnv, err := loadEnvWithProcessEnvPrecedence(workingDirectory)
+	if err != nil {
+		return Config{}, err
+	}
+	return Parse(processEnv, workingDirectory)
+}
+
+func loadEnvWithProcessEnvPrecedence(workingDirectory string) (map[string]string, error) {
+	envFilePath := filepath.Join(workingDirectory, ".env")
+	fileEnv, err := godotenv.Read(envFilePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			// A missing .env file is valid. Treat it as empty.
+			fileEnv = map[string]string{}
+		} else {
+			// Permission errors, malformed files, and other failures
+			// should still propagate.
+			return map[string]string{}, err
+		}
+	}
+	processEnv := processEnvironment()
+	mergedEnvironment := overlayProcessEnvOverFileEnv(fileEnv, processEnv)
+	return mergedEnvironment, nil
 }
 
 func LoadAttackerLab(workingDirectory string) (AttackerLabConfig, error) {
-	return ParseAttackerLab(processEnvironment())
+	processEnv, err := loadEnvWithProcessEnvPrecedence(workingDirectory)
+	if err != nil {
+		return AttackerLabConfig{}, err
+	}
+	return ParseAttackerLab(processEnv)
 }
 
 func Parse(environment map[string]string, workingDirectory string) (Config, error) {
 	apiKey, err := requireEnvironmentVariable(environment, "PAWPAL_API_KEY")
 	if err != nil {
 		return Config{}, err
+	}
+	// Require DOWNLOAD_SIGNING_KEY and decode it as exactly 64 hexadecimal characters into a [32]byte. Return an error for any other value.
+	downloadSignKey, err := requireEnvironmentVariable(environment, "DOWNLOAD_SIGNING_KEY")
+	if len(downloadSignKey) != 64 || err != nil {
+		return Config{}, errors.New("invalid signing key")
+	}
+
+	var DownloadSigningKeyBytes [32]byte
+	decodedByteCount, err := hex.Decode(DownloadSigningKeyBytes[:], []byte(downloadSignKey))
+	if decodedByteCount != 32 || err != nil {
+		return Config{}, errors.New("invalid signing key")
 	}
 
 	port, err := parseNonNegativeInteger(valueOrDefault(environment, "PORT", strconv.Itoa(defaultPort)), "PORT")
@@ -94,6 +136,7 @@ func Parse(environment map[string]string, workingDirectory string) (Config, erro
 		MaxPublicProductResults:    MaxPublicProductResults,
 		ActiveEncryptionKeyVersion: activeEncryptionKeyVersion,
 		EncryptionKeys:             encryptionKeys,
+		DownloadSigningKey:         DownloadSigningKeyBytes,
 	}, nil
 }
 
@@ -108,6 +151,7 @@ func ParseAttackerLab(environment map[string]string) (AttackerLabConfig, error) 
 	return AttackerLabConfig{Port: port}, nil
 }
 
+// Process layer — variables actually set in the running process (os.Environ()), e.g.  DB_URL=... go run ./cmd/server
 func processEnvironment() map[string]string {
 	environment := make(map[string]string)
 	for _, entry := range os.Environ() {
@@ -117,6 +161,17 @@ func processEnvironment() map[string]string {
 		}
 	}
 	return environment
+}
+
+func overlayProcessEnvOverFileEnv(fromFile map[string]string, fromProcess map[string]string) map[string]string {
+	merged := map[string]string{}
+	maps.Copy(merged, fromFile)
+
+	// overlay
+	for k, v := range fromProcess { // e.g. LOG_LEVEL=warn
+		merged[k] = v
+	}
+	return merged // // merged["LOG_LEVEL"] == "warn"
 }
 
 // Read required configuration during startup.

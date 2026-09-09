@@ -1,0 +1,19 @@
+# Environment files and secrets
+.env*
+
+# Git metadata
+.git/
+
+# Temporary files and logs
+tmp/
+*.log
+
+# Local databases
+data/*.sqlite*
+
+# Bulk tax documents
+data/bulk-tax-documents/
+
+# Runtime uploads
+data/uploads/*
+!data/uploads/mystery-shack-tax-exemption.pdf
