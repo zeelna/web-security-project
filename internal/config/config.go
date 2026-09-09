@@ -51,6 +51,11 @@ func LoadAttackerLab(workingDirectory string) (AttackerLabConfig, error) {
 }
 
 func Parse(environment map[string]string, workingDirectory string) (Config, error) {
+	apiKey, err := requireEnvironmentVariable(environment, "PAWPAL_API_KEY")
+	if err != nil {
+		return Config{}, err
+	}
+
 	port, err := parseNonNegativeInteger(valueOrDefault(environment, "PORT", strconv.Itoa(defaultPort)), "PORT")
 	if err != nil {
 		return Config{}, err
@@ -79,7 +84,7 @@ func Parse(environment map[string]string, workingDirectory string) (Config, erro
 	}
 
 	return Config{
-		PawPalAPIKey:               "bs_test_pawpal_starter_key",
+		PawPalAPIKey:               apiKey,
 		AppOrigin:                  appOrigin,
 		Port:                       port,
 		DatabasePath:               databasePath,
@@ -114,6 +119,17 @@ func processEnvironment() map[string]string {
 	return environment
 }
 
+// Read required configuration during startup.
+// If PAWPAL_API_KEY is missing, fail immediately instead of waiting until a customer tries to check out. That's safer and easier to debug.
+func requireEnvironmentVariable(environment map[string]string, name string) (string, error) {
+	value := environment[name]
+	if value == "" {
+		return "", fmt.Errorf("missing required environment variable: %s", name)
+	}
+	return value, nil
+}
+
+// Unsafe for API key
 func valueOrDefault(environment map[string]string, name, fallback string) string {
 	if value := environment[name]; value != "" {
 		return value
