@@ -8,17 +8,30 @@ import (
 	"github.com/bootdotdev/learn-web-security/internal/database/dbgen"
 )
 
+/*
+	type Product struct {
+		ID             int64  `json:"id"`
+		Name           string `json:"name"`
+		Description    string `json:"description"`
+		ImagePath      string `json:"image_path"`
+		PriceCents     int64  `json:"price_cents"`
+		CostCents      int64  `json:"cost_cents"`
+		InventoryCount int64  `json:"inventory_count"`
+		IsActive       bool   `json:"is_active"`
+		CreatedAt      string `json:"created_at"`
+	}
+*/
 type Product struct {
 	ID             int64  `json:"id"`
 	Name           string `json:"name"`
 	Description    string `json:"description"`
 	ImagePath      string `json:"image_path"`
 	PriceCents     int64  `json:"price_cents"`
-	CostCents      int64  `json:"cost_cents"`
-	InventoryCount int64  `json:"inventory_count"`
-	IsActive       bool   `json:"is_active"`
-	CreatedAt      string `json:"created_at"`
-}
+	CostCents      int64
+	InventoryCount int64
+	IsActive       bool
+	CreatedAt      string
+} // deliberately removed JSON-tags for some fields to avoid exposing sensitive data (and prevent data leak) via public API, GET /api/products
 
 type Review struct {
 	ID           int64
@@ -60,18 +73,15 @@ func (store *Store) SearchProducts(ctx context.Context, query string, maxResults
 	return mapProducts(rows), nil
 }
 
-func (store *Store) ListAllProducts(ctx context.Context) ([]Product, error) {
-	rows, err := store.database.QueryContext(ctx, `
-		SELECT id, name, description, image_path, price_cents, cost_cents, inventory_count, is_active, created_at
-		FROM products
-		ORDER BY id
-	`)
+/*
+func (store *Store) ListAllProducts(ctx context.Context, maxResults int64) ([]Product, error) {
+	products, err := store.ListProducts(ctx, maxResults)
 	if err != nil {
 		return nil, fmt.Errorf("list all products: %w", err)
 	}
-	defer rows.Close()
-	return scanProducts(rows)
+	return products, nil
 }
+*/
 
 func (store *Store) FindProduct(ctx context.Context, productID int64) (Product, bool, error) {
 	row, err := store.queries.GetActiveProduct(ctx, productID)
@@ -128,6 +138,7 @@ func mapProduct(row dbgen.Product) Product {
 	}
 }
 
+/* // Unused function. scanProducts function still tries to scan into product.CostCents, product.InventoryCount, product.IsActive, and product.CreatedAt — but we removed those fields from Product. That's a compile error waiting to happen.
 func scanProducts(rows *sql.Rows) ([]Product, error) {
 	products := make([]Product, 0)
 	for rows.Next() {
@@ -141,3 +152,4 @@ func scanProducts(rows *sql.Rows) ([]Product, error) {
 	}
 	return products, rows.Err()
 }
+*/

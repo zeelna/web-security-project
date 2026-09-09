@@ -144,11 +144,11 @@ func New(database *sql.DB, logger *logging.Logger, options Options) (*Applicatio
 	dynamicMux.HandleFunc("GET /{$}", storefrontHandler.Storefront)
 	dynamicMux.HandleFunc("GET /search", storefrontHandler.Search)
 	dynamicMux.HandleFunc("GET /products/{id}", storefrontHandler.Product)
-	dynamicMux.HandleFunc("GET /api/account/orders", apiHandler.AccountOrders)
-	dynamicMux.HandleFunc("GET /api/orders/{id}", apiHandler.Order)
-	dynamicMux.Handle("GET /api/products", unsecureAllowAllOrigin(http.HandlerFunc(apiHandler.Products)))
-	dynamicMux.Handle("OPTIONS /api/products", unsecureAllowAllOrigin(http.HandlerFunc(apiHandler.Products)))
-	dynamicMux.HandleFunc("GET /api/integrations/warehouse/orders", apiHandler.WarehouseOrders)
+	dynamicMux.HandleFunc("GET /api/account/orders", apiHandler.AccountOrders) 								// public API
+	dynamicMux.HandleFunc("GET /api/orders/{id}", apiHandler.Order) 											// public API
+	dynamicMux.Handle("GET /api/products", unsecureAllowAllOrigin(http.HandlerFunc(apiHandler.Products))) 	// public API
+	dynamicMux.Handle("OPTIONS /api/products", unsecureAllowAllOrigin(http.HandlerFunc(apiHandler.Products))) // public API
+	dynamicMux.HandleFunc("GET /api/integrations/warehouse/orders", apiHandler.WarehouseOrders) 				// public API
 	dynamicMux.Handle("POST /products/{id}/reviews", parseForm(options.MaxRequestBodyBytes, renderer)(http.HandlerFunc(reviewHandler.Create)))
 	dynamicMux.HandleFunc("GET /login", authenticationHandler.LoginPage)
 	dynamicMux.Handle("POST /login", parseForm(options.MaxRequestBodyBytes, renderer)(http.HandlerFunc(authenticationHandler.Login)))
