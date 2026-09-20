@@ -62,11 +62,59 @@ func (keyring *Keyring) ActiveVersion() string {
 }
 
 func (keyring *Keyring) Encrypt(plaintext []byte) (string, error) {
-	return string(plaintext), nil
+	keyring, err := requireKeyring(keyring)
+	if err != nil {
+		return "", err
+	}
+	// reject a missing active key
+	key, ok := keyring.keys[keyring.activeVersion]
+	if !ok {
+		return "", errors.New("key not found for this unknown version")
+	}
+
+	// encrypt plaintext with the provided 'encrypt' helper
+	ciphertext, err := Encrypt(plaintext, key)
+	if err != nil {
+		return "", err
+	}
+	serialized, err := serializeEncryptedPayload(versionedEncryptedPayload{
+		KeyVersion: keyring.activeVersion,
+		Nonce:      ciphertext.Nonce,
+		AuthTag:    ciphertext.AuthTag,
+		Ciphertext: ciphertext.Ciphertext,
+	})
+	if err != nil {
+		return "", err
+	}
+	return serialized, nil
 }
 
 func (keyring *Keyring) Decrypt(serialized string) ([]byte, error) {
-	return []byte(serialized), nil
+	keyring, err := requireKeyring(keyring)
+	if err != nil {
+		return []byte{}, err
+	}
+	deserialized, err := deserializeEncryptedPayload(serialized)
+	if err != nil {
+		return []byte{}, err
+	}
+	// Verify map[string][32]byte (key: string, value: array of 32 bytes) has this key.
+	key, ok := keyring.keys[deserialized.KeyVersion]
+	if !ok {
+		return []byte{}, errors.New("key not found for this unknown version")
+	}
+
+	// Convert into correct type, from 'versionedEncryptedPayload' into 'EncryptedPayload'
+	ciphertext := EncryptedPayload{
+		Nonce:      deserialized.Nonce,
+		AuthTag:    deserialized.AuthTag,
+		Ciphertext: deserialized.Ciphertext,
+	}
+	plaintext, err := Decrypt(ciphertext, key)
+	if err != nil {
+		return []byte{}, err
+	}
+	return plaintext, nil
 }
 
 func requireKeyring(keyring *Keyring) (*Keyring, error) {

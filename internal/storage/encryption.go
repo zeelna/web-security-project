@@ -18,15 +18,6 @@ func Encrypt(plaintext []byte, key [32]byte) (EncryptedPayload, error) {
 		return EncryptedPayload{}, errors.New("invalid plaintext")
 	}
 
-	/*
-		// Generate 16-byte authentication tag
-		authTag := make([]byte, 16)
-		read, err = rand.Read(nonce)
-		if err != nil || read != len(authTag) {
-			return EncryptedPayload{}, errors.New("invalid authentication tag")
-		}
-	*/
-
 	// AEG-GCM
 	// 1. Create new cipher block
 	block, err := aes.NewCipher(key[:])

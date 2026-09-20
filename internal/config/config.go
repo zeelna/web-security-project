@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/bootdotdev/learn-web-security/internal/storage"
 	"github.com/joho/godotenv"
 )
 
@@ -42,6 +43,7 @@ type Config struct {
 	EncryptionKeys             map[string][32]byte
 	DownloadSigningKey         [32]byte
 	TrustedProxyHops           int
+	EncryptionKeyring		   *storage.Keyring
 }
 
 type AttackerLabConfig struct {
@@ -117,7 +119,14 @@ func Parse(environment map[string]string, workingDirectory string) (Config, erro
 		return Config{}, err
 	}
 
-	activeEncryptionKeyVersion, encryptionKeys, err := parseOptionalEncryptionKeys(environment)
+	//activeEncryptionKeyVersion, encryptionKeys, err := parseOptionalEncryptionKeys(environment)
+	// use parseEncryptionKeys instead of parseOptionalEncryptionKeys so missing encryption configuration prevents startup.
+	activeEncryptionKeyVersion, encryptionKeys, err := parseEncryptionKeys(environment)
+	if err != nil {
+		return Config{}, err
+	}
+
+	keyring, err := storage.NewKeyring(activeEncryptionKeyVersion, encryptionKeys)
 	if err != nil {
 		return Config{}, err
 	}
@@ -147,6 +156,8 @@ func Parse(environment map[string]string, workingDirectory string) (Config, erro
 		EncryptionKeys:             encryptionKeys,
 		DownloadSigningKey:         DownloadSigningKeyBytes,
 		TrustedProxyHops:           trustedProxyHops,
+		EncryptionKeyring:          keyring,
+
 	}, nil
 }
 

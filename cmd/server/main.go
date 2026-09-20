@@ -65,6 +65,7 @@ func run(ctx context.Context) error {
 		TemplateDirectory:       filepath.Join(workingDirectory, "web", "templates"),
 		PublicDirectory:         filepath.Join(workingDirectory, "web", "public"),
 		TrustedProxyHops:        appConfig.TrustedProxyHops,
+		EncryptionKeyring:       appConfig.EncryptionKeyring,
 	})
 	if err != nil {
 		return err
