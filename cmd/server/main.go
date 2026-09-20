@@ -50,6 +50,8 @@ func run(ctx context.Context) error {
 		return err
 	}
 	defer appLogger.Close()
+
+	// IMPORTANT: GATHERS .env content from this intricate pattern. When adding, add into 'internal/config/config.go' beforehand, then into 'internal/httpserver' Options struct.
 	application, err := httpserver.New(databaseConnection, appLogger, httpserver.Options{
 		AppOrigin:               appConfig.AppOrigin,
 		MaxPublicProductResults: appConfig.MaxPublicProductResults,
@@ -62,6 +64,7 @@ func run(ctx context.Context) error {
 		FixtureDirectory:        filepath.Join(workingDirectory, "data", "fixtures"),
 		TemplateDirectory:       filepath.Join(workingDirectory, "web", "templates"),
 		PublicDirectory:         filepath.Join(workingDirectory, "web", "public"),
+		TrustedProxyHops:        appConfig.TrustedProxyHops,
 	})
 	if err != nil {
 		return err
