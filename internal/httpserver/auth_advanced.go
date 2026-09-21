@@ -250,6 +250,20 @@ func (handler *authHandler) RecoverMFA(responseWriter http.ResponseWriter, reque
 		handler.internalError(responseWriter, request, err)
 		return
 	}
+	// happy path: 'found' == true. Hash is correct, now we check if hash is SHA256, which means we must ReHash to Argon2id.
+	if passwords.NeedsRehash(user.PasswordHash) { // hashed by SHA256, must hash provided password (from html.Form) to Argon2id.
+		argon2idHash, err := passwords.Hash(password)
+		if err != nil {
+			handler.internalError(responseWriter, request, err)
+			return
+		}
+		if err := handler.accounts.UpdatePasswordHash(request.Context(), user.ID, argon2idHash); err != nil {
+			handler.internalError(responseWriter, request, err)
+			return
+		}
+	}
+	// IMPORTANT: Rehashing to Argon2id must be done BEFORE session cookie.
+	// If this is ignored: If hashing or storing fails, the response may already contain an authentication cookie AND session alongside an error page.
 	session, err := handler.accounts.CreateSession(request.Context(), user.ID)
 	if err != nil {
 		handler.internalError(responseWriter, request, err)

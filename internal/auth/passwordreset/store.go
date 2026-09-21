@@ -27,12 +27,12 @@ type Token struct {
 type Store struct {
 	database *sql.DB
 	queries  *dbgen.Queries
-	now      func() time.Time
+	Now      func() time.Time
 	random   io.Reader
 }
 
 func NewStore(database *sql.DB) *Store {
-	return &Store{database: database, queries: dbgen.New(database), now: time.Now, random: rand.Reader}
+	return &Store{database: database, queries: dbgen.New(database), Now: time.Now, random: rand.Reader}
 }
 
 func (store *Store) Create(ctx context.Context, userID int64) (Token, error) {
@@ -41,11 +41,11 @@ func (store *Store) Create(ctx context.Context, userID int64) (Token, error) {
 		return Token{}, fmt.Errorf("generate password reset token: %w", err)
 	}
 	value := hex.EncodeToString(tokenBytes)
-	expiresAt := store.now().UTC().Add(tokenTTL)
+	expiresAt := store.Now().UTC().Add(tokenTTL)
 	if err := store.queries.CreatePasswordResetToken(ctx, dbgen.CreatePasswordResetTokenParams{
 		UserID:    userID,
 		TokenHash: hashToken(value),
-		ExpiresAt: formatTimestamp(expiresAt),
+		ExpiresAt: FormatTimestamp(expiresAt),
 	}); err != nil {
 		return Token{}, fmt.Errorf("create password reset token: %w", err)
 	}
@@ -69,14 +69,14 @@ func (store *Store) Validate(ctx context.Context, value string) (Token, bool, er
 		return Token{}, false, fmt.Errorf("find password reset token: %w", err)
 	}
 	expiresAt, err := time.Parse(time.RFC3339, row.ExpiresAt)
-	if err != nil || row.UsedAt != nil || !store.now().Before(expiresAt) {
+	if err != nil || row.UsedAt != nil || !store.Now().Before(expiresAt) {
 		return Token{}, false, nil
 	}
 	return Token{ID: row.ID, UserID: row.UserID, ExpiresAt: expiresAt, UsedAt: row.UsedAt, Value: value}, true, nil
 }
 
 func (store *Store) ResetPassword(ctx context.Context, value, passwordHash string) (bool, error) {
-	now := formatTimestamp(store.now().UTC())
+	now := FormatTimestamp(store.Now().UTC())
 	transaction, err := store.database.BeginTx(ctx, nil)
 	if err != nil {
 		return false, fmt.Errorf("begin password reset: %w", err)
@@ -96,7 +96,7 @@ func (store *Store) ResetPassword(ctx context.Context, value, passwordHash strin
 	if err != nil {
 		return false, fmt.Errorf("consume password reset token: %w", err)
 	}
-	result, err := queries.ResetUserPasswordHash(ctx, dbgen.ResetUserPasswordHashParams{
+	result, err := queries.ResetUserPasswordHash(ctx, dbgen.ResetUserPasswordHashParams{ // todo: copy this
 		PasswordHash: passwordHash,
 		Now:          now,
 		UserID:       userID,
@@ -131,6 +131,6 @@ func hashToken(value string) string {
 	return hex.EncodeToString(tokenHash[:])
 }
 
-func formatTimestamp(timestamp time.Time) string {
+func FormatTimestamp(timestamp time.Time) string {
 	return timestamp.UTC().Format("2006-01-02T15:04:05.000Z")
 }
