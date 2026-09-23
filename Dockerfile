@@ -25,8 +25,8 @@ COPY --from=build --chown=bearly:bearly /out/bearly-attacker-lab ./bearly-attack
 COPY --chown=bearly:bearly attacker-lab ./attacker-lab
 COPY --chown=bearly:bearly web ./web
 COPY --chown=bearly:bearly \
-    data/uploads/mystery-shack-tax-exemption.pdf \
-    ./data/uploads/mystery-shack-tax-exemption.pdf
+    data/fixtures/mystery-shack-tax-exemption.pdf \
+    .data/fixtures/mystery-shack-tax-exemption.pdf
 
 RUN chown bearly:bearly ./data
 

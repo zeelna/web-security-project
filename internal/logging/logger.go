@@ -19,12 +19,19 @@ type Logger struct {
 // Sanitize logs to replace sensitive information such as session tokens, secrets, links with '[REDACTED]'
 func redact(fields map[string]any) map[string]any {
 	var sensitiveFields = map[string]struct{}{
-		"sessionId":   {},
-		"resetToken":  {},
-		"resetLink":   {},
-		"secret":      {},
-		"adminNotes":  {},
-		"storagePath": {},
+		"sessionId":          {},
+		"resetToken":         {},
+		"resetLink":          {},
+		"secret":             {},
+		"adminNotes":         {},
+		"storagePath":        {},
+		"email":              {},
+		"shippingName":       {},
+		"shippingAddress":    {},
+		"shippingCity":       {},
+		"shippingRegion":     {},
+		"shippingPostalCode": {},
+		"originalName":       {},
 	}
 
 	redacted := make(map[string]any, len(fields))

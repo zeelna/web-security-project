@@ -16,4 +16,4 @@ data/bulk-tax-documents/
 
 # Runtime uploads
 data/uploads/*
-!data/uploads/mystery-shack-tax-exemption.pdf
+# !data/uploads/mystery-shack-tax-exemption.pdf
