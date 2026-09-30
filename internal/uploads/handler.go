@@ -166,7 +166,7 @@ func (handler *Handler) readUpload(responseWriter http.ResponseWriter, request *
 		return nil, "", err
 	}
 	files := request.MultipartForm.File["document"]
-	if len(files) == 0 {
+	if len(files) != 1 {
 		return nil, "", errors.New("missing document upload")
 	}
 	file, err := files[0].Open()
