@@ -126,7 +126,7 @@ func New(database *sql.DB, logger *logging.Logger, options Options) (*Applicatio
 		filepath.Join(options.DataDirectory, "bulk-tax-documents"),
 		options.MaxUploadBytes,
 	)
-	authenticationHandler := newAuthHandler(accountStore, mfaStore, passwordResetStore, renderer, logger, options.AppOrigin)
+	authenticationHandler := newAuthHandler(accountStore, mfaStore, passwordResetStore, renderer, logger, options.AppOrigin, options.TrustedProxyHops)
 	passkeyHandler, err := passkeys.NewHandler(
 		options.AppOrigin,
 		accountStore,
@@ -272,6 +272,7 @@ func New(database *sql.DB, logger *logging.Logger, options Options) (*Applicatio
 
 	dynamicHandler := applyMiddleware(
 		dynamicMux,
+		LoadShedder(50, 1),
 		fixedWindowRateLimiter(rateLimitOptions{
 			window:  time.Minute,
 			maximum: 100,
@@ -298,6 +299,7 @@ func New(database *sql.DB, logger *logging.Logger, options Options) (*Applicatio
 
 	handler := applyMiddleware(
 		mainMux,
+		assignRequestID,
 		securityHeaders,
 		recoverPanics(logger, renderer),
 	)

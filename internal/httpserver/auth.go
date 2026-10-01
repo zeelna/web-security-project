@@ -2,6 +2,7 @@ package httpserver
 
 import (
 	"errors"
+	"maps"
 	"net/http"
 	"strings"
 	"unicode/utf8"
@@ -12,6 +13,7 @@ import (
 	"github.com/bootdotdev/learn-web-security/internal/auth/passwords"
 	"github.com/bootdotdev/learn-web-security/internal/auth/returnto"
 	"github.com/bootdotdev/learn-web-security/internal/auth/sessions"
+	"github.com/bootdotdev/learn-web-security/internal/botdetection"
 	"github.com/bootdotdev/learn-web-security/internal/httpx"
 	"github.com/bootdotdev/learn-web-security/internal/logging"
 	"github.com/bootdotdev/learn-web-security/internal/templates"
@@ -28,22 +30,24 @@ type authPage struct {
 }
 
 type authHandler struct {
-	accounts       *accounts.Store
-	renderer       *templates.Renderer
-	logger         *logging.Logger
-	mfa            *mfa.Store
-	passwordResets *passwordreset.Store
-	appOrigin      string
+	accounts         *accounts.Store
+	renderer         *templates.Renderer
+	logger           *logging.Logger
+	trustedProxyHops int
+	mfa              *mfa.Store
+	passwordResets   *passwordreset.Store
+	appOrigin        string
 }
 
-func newAuthHandler(accountStore *accounts.Store, mfaStore *mfa.Store, passwordResetStore *passwordreset.Store, renderer *templates.Renderer, logger *logging.Logger, appOrigin string) *authHandler {
+func newAuthHandler(accountStore *accounts.Store, mfaStore *mfa.Store, passwordResetStore *passwordreset.Store, renderer *templates.Renderer, logger *logging.Logger, appOrigin string, trustedProxyHops int) *authHandler {
 	return &authHandler{
-		accounts:       accountStore,
-		renderer:       renderer,
-		logger:         logger,
-		mfa:            mfaStore,
-		passwordResets: passwordResetStore,
-		appOrigin:      appOrigin,
+		accounts:         accountStore,
+		renderer:         renderer,
+		logger:           logger,
+		trustedProxyHops: trustedProxyHops,
+		mfa:              mfaStore,
+		passwordResets:   passwordResetStore,
+		appOrigin:        appOrigin,
 	}
 }
 
@@ -166,6 +170,9 @@ func (handler *authHandler) Signup(responseWriter http.ResponseWriter, request *
 	}
 	if current {
 		http.Redirect(responseWriter, request, "/account", http.StatusFound)
+		return
+	}
+	if blocked := botdetection.ProtectSignup(responseWriter, request, handler.renderer); blocked {
 		return
 	}
 
@@ -302,8 +309,17 @@ func (handler *authHandler) internalError(responseWriter http.ResponseWriter, re
 	}
 }
 
-func (handler *authHandler) logAuthenticationEvent(_ *http.Request, eventName string, fields map[string]any) {
-	_ = handler.logger.Event(eventName, fields)
+func (handler *authHandler) logAuthenticationEvent(request *http.Request, eventName string, fields map[string]any) {
+	eventFields := make(map[string]any, len(fields)+4)
+	maps.Copy(eventFields, fields)
+	eventFields["requestId"] = requestID(request.Context()).String()
+	eventFields["sourceIp"] = clientIPKeyWithTrustedProxies(handler.trustedProxyHops)(request)
+	eventFields["userId"] = fields["userId"]
+	eventFields["outcome"] = "failure"
+	if success, _ := fields["success"].(bool); success {
+		eventFields["outcome"] = "success"
+	}
+	_ = handler.logger.Event(eventName, eventFields)
 }
 
 func safeReturnTo(value string) string {

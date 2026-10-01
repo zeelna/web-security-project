@@ -3,6 +3,7 @@
 package httpserver
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
@@ -15,6 +16,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"uuid"
 
 	"github.com/bootdotdev/learn-web-security/internal/httpx"
 	"github.com/bootdotdev/learn-web-security/internal/logging"
@@ -23,11 +25,31 @@ import (
 
 type middleware func(http.Handler) http.Handler
 
+type contextKey string
+
+const (
+	requestIDContextKey contextKey = "request-id"
+)
+
 func applyMiddleware(handler http.Handler, middlewareChain ...middleware) http.Handler {
 	for _, currentMiddleware := range slices.Backward(middlewareChain) {
 		handler = currentMiddleware(handler)
 	}
 	return handler
+}
+
+func assignRequestID(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+		requestID := uuid.NewV4()
+		responseWriter.Header().Set("X-Request-ID", requestID.String())
+		request = request.WithContext(context.WithValue(request.Context(), requestIDContextKey, requestID))
+		next.ServeHTTP(responseWriter, request)
+	})
+}
+
+func requestID(ctx context.Context) uuid.UUID {
+	identifier, _ := ctx.Value(requestIDContextKey).(uuid.UUID)
+	return identifier
 }
 
 func unsecureAllowAllOrigin(next http.Handler) http.Handler {
@@ -187,9 +209,26 @@ func recoverPanics(logger *logging.Logger, renderer *templates.Renderer) middlew
 	}
 }
 
-func LoadShedder(_ int, _ int) func(http.Handler) http.Handler {
+func LoadShedder(maxConcurrent, retryAfterSeconds int) func(http.Handler) http.Handler {
+	if maxConcurrent <= 0 {
+		panic("in-flight limit must be positive")
+	}
+	if retryAfterSeconds <= 0 {
+		panic("retry delay must be positive")
+	}
+	capacity := make(chan struct{}, maxConcurrent)
 	return func(next http.Handler) http.Handler {
-		return next
+		return http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+			responseWriter.Header().Set("X-In-Flight-Limit", strconv.Itoa(maxConcurrent))
+			select {
+			case capacity <- struct{}{}:
+				defer func() { <-capacity }()
+				next.ServeHTTP(responseWriter, request)
+			default:
+				responseWriter.Header().Set("Retry-After", strconv.Itoa(retryAfterSeconds))
+				httpx.RespondWithError(responseWriter, http.StatusServiceUnavailable, "Service is at capacity")
+			}
+		})
 	}
 }
 
