@@ -139,6 +139,12 @@ func (handler *authHandler) TOTPLogin(responseWriter http.ResponseWriter, reques
 			"failureReason": "totp code mismatch",
 			"returnTo":      challenge.ReturnTo,
 		})
+
+		handler.failedLoginAlerts.Record(
+			requestID(request.Context()).String(),
+			clientIPKeyWithTrustedProxies(handler.trustedProxyHops)(request),
+			user.ID,
+		)
 		if exhausted {
 			clearTOTPLoginChallengeCookie(responseWriter)
 			http.Redirect(responseWriter, request, verificationRestartLoginPath(challenge.ReturnTo), http.StatusFound)
@@ -305,6 +311,11 @@ func (handler *authHandler) RequestPasswordReset(responseWriter http.ResponseWri
 			"success":       false,
 			"failureReason": "email not found",
 		})
+		handler.resetAlerts.Record(
+			requestID(request.Context()).String(),
+			clientIPKeyWithTrustedProxies(handler.trustedProxyHops)(request),
+			nil,
+		)
 		if err := handler.renderPasswordResetRequest(responseWriter, http.StatusOK, true, "", ""); err != nil {
 			handler.internalError(responseWriter, request, err)
 		}
@@ -327,6 +338,11 @@ func (handler *authHandler) RequestPasswordReset(responseWriter http.ResponseWri
 		"resetToken": resetToken.Value,
 		"resetLink":  resetLink,
 	})
+	handler.resetAlerts.Record(
+		requestID(request.Context()).String(),
+		clientIPKeyWithTrustedProxies(handler.trustedProxyHops)(request),
+		user.ID,
+	)
 	if err := handler.renderPasswordResetRequest(responseWriter, http.StatusOK, true, "", ""); err != nil {
 		handler.internalError(responseWriter, request, err)
 	}
