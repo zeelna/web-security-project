@@ -255,6 +255,7 @@ func New(database *sql.DB, logger *logging.Logger, options Options) (*Applicatio
 	dynamicMux.HandleFunc("GET /admin/products/{id}/edit", adminHandler.EditProduct)
 	dynamicMux.Handle("POST /admin/products/{id}", parseForm(options.MaxRequestBodyBytes, renderer)(http.HandlerFunc(adminHandler.UpdateProduct)))
 	dynamicMux.HandleFunc("GET /admin/products/{id}", adminHandler.Product)
+	dynamicMux.HandleFunc("GET /.well-known/security.txt", securityText)
 	dynamicMux.HandleFunc("/", func(responseWriter http.ResponseWriter, _ *http.Request) {
 		if err := httpx.RespondWithErrorPage(responseWriter, renderer, http.StatusNotFound, "Page Not Found", "We couldn't find the page you requested."); err != nil {
 			http.Error(responseWriter, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
@@ -308,6 +309,16 @@ func New(database *sql.DB, logger *logging.Logger, options Options) (*Applicatio
 
 func (application *Application) Close() error {
 	return application.publicRoot.Close()
+}
+
+func securityText(responseWriter http.ResponseWriter, _ *http.Request) {
+	expires := time.Now().UTC().Add(180 * 24 * time.Hour).Format("2006-01-02T15:04:05.000Z")
+	responseWriter.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	fmt.Fprintf(
+		responseWriter,
+		"Contact: mailto:security@bearlysecure.example\nPolicy: https://bearlysecure.example/security-policy\nExpires: %s\n",
+		expires,
+	)
 }
 
 func newStaticHandler(publicRoot *os.Root) http.Handler {

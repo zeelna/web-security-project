@@ -222,6 +222,14 @@ func (store *Store) RevokeSession(ctx context.Context, token string) error {
 	return nil
 }
 
+func (store *Store) RevokeAllActiveSessions(ctx context.Context) (int, error) {
+	revokedCount, err := store.queries.RevokeAllActiveSessions(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("revoke all active sessions: %w", err)
+	}
+	return int(revokedCount), nil
+}
+
 func (store *Store) CartQuantities(ctx context.Context, userID int64) (map[int64]int64, error) {
 	rows, err := store.queries.ListCartQuantities(ctx, userID)
 	if err != nil {
